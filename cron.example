@@ -1,0 +1,8 @@
+# Health endpoint ping every 5 minutes for the main agent
+*/5 * * * * cd /opt/my-agent && python3 monitor.py --heartbeat /tmp/agent.hb --max-age 120 --on-fail "curl -fsS -X POST https://health.example.com/alert?agent=main"
+
+# Stale pidfile check for the batch worker (hourly, generous age)
+0 * * * * cd /opt/my-agent && python3 monitor.py --pidfile /tmp/batch.pid --max-age 3600 --on-fail "mail -s 'batch worker stuck' ops@example.com"
+
+# The agent itself should touch its heartbeat every minute (from within the worker loop)
+* * * * * flock -n /tmp/agent.hb.lock -c "touch /tmp/agent.hb"
