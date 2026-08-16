@@ -11,10 +11,12 @@ Examples:
         --on-fail "curl -fsS -X POST https://health.example.com/alert?agent=a"
     python3 monitor.py --pidfile /tmp/agent.pid --max-age 1800
 """
+
 from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -39,9 +41,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--heartbeat", help="heartbeat file path")
     ap.add_argument("--pidfile", help="pid file path (alternative check)")
-    ap.add_argument("--max-age", type=int, required=True,
-                    help="max allowed age in seconds")
-    ap.add_argument("--on-fail", default="", help="shell command on unhealthy")
+    ap.add_argument(
+        "--max-age", type=int, required=True, help="max allowed age in seconds"
+    )
+    ap.add_argument(
+        "--on-fail", default="", help="command (shell-parsed) to run on unhealthy"
+    )
     args = ap.parse_args()
     if not (args.heartbeat or args.pidfile):
         ap.error("provide --heartbeat or --pidfile")
@@ -57,11 +62,19 @@ def main() -> int:
         return 0
     print(f"[UNHEALTHY] {detail}", file=sys.stderr)
     if args.on_fail:
-        try:
-            subprocess.run(args.on_fail, shell=True, check=False,  # noqa: S602
-                           timeout=30)
-        except subprocess.TimeoutExpired:
-            print("on-fail command timed out", file=sys.stderr)
+        cmd = shlex.split(args.on_fail)
+        if not cmd:
+            print("on-fail command is empty", file=sys.stderr)
+        else:
+            try:
+                subprocess.run(
+                    cmd,
+                    shell=False,
+                    check=False,  # noqa: S603
+                    timeout=30,
+                )
+            except subprocess.TimeoutExpired:
+                print("on-fail command timed out", file=sys.stderr)
     return 2
 
 
